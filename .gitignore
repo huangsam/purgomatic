@@ -1,0 +1,5 @@
+.DS_Store
+migration.json
+scans.json
+*.db
+*.db-journal
