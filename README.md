@@ -8,12 +8,12 @@ Purgomatic is built on the **"Home-First"** principle. Instead of just finding d
 It provides a **Strategic Dashboard** telling you what needs to be moved and what’s already safe.
 
 ### Key Features
-- **100% Pure Go (Zero CGO)**: No external C-dependencies. Built with `modernc.org/sqlite`.
-- **Consolidated Audit**: A single `audit` command indexes your library and generates a high-level strategic report.
-- **Hardware Optimized**: Scalable concurrency utilizing `runtime.NumCPU() * 2`. Blazing fast on modern multi-core systems (like the Apple M3 Max).
-- **Multi-Point Hashing**: Custom SHA-256 sampler (First/Middle/End) for collision-resistant deduplication at scale.
-- **Stat-First Sync**: Blazing fast rescans by skipping hashing for unchanged files based on Size/Mtime.
-- **Worst Offenders Tracking**: Automatically flags the top 3 largest files per year to highlight migration targets.
+- **Zero CGO**: Pure Go using `modernc.org/sqlite`.
+- **Consolidated Audit**: Single command for scanning and reporting.
+- **Hardware Scaled**: Dynamic concurrency via `runtime.NumCPU()`.
+- **Multi-Point Hashing**: Sparse SHA-256 sampling for speed and safety.
+- **Stat-First Sync**: Skips unchanged files using metadata.
+- **Worst Offenders**: Flags top 3 largest files per year.
 
 ## Getting Started
 
