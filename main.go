@@ -62,42 +62,13 @@ func main() {
 				},
 			},
 			{
-				Name:  "scan",
-				Usage: "Scan one or more directories and index metadata into SQLite",
+				Name:  "audit",
+				Usage: "Scan all targets in scans.json & generate global library report",
 				Flags: []cli.Flag{
-					&cli.StringFlag{Name: "source", Aliases: []string{"s"}, Usage: "Name of the storage source (e.g. NAS, Internal)"},
-					&cli.StringFlag{Name: "path", Aliases: []string{"p"}, Usage: "Path to the directory"},
-					&cli.StringFlag{Name: "file", Aliases: []string{"f"}, Usage: "Path to a JSON or CSV file containing scan targets"},
+					&cli.StringFlag{Name: "file", Aliases: []string{"f"}, Value: "scans.json", Usage: "Batch scan config (JSON)"},
 				},
 				Action: func(_ context.Context, cmd *cli.Command) error {
-					file := cmd.String("file")
-					if file != "" {
-						return handleBatchScan(file)
-					}
-					source := cmd.String("source")
-					path := cmd.String("path")
-					if path == "" {
-						return fmt.Errorf("either --file OR --path is required")
-					}
-					// Default source to Local if not provided.
-					if source == "" {
-						source = "Local"
-					}
-					return handleScan(source, path)
-				},
-			},
-			{
-				Name:  "report",
-				Usage: "Generate a global audit report across all sources",
-				Action: func(_ context.Context, _ *cli.Command) error {
-					return handleReport()
-				},
-			},
-			{
-				Name:  "plan",
-				Usage: "Generate a migration strategy JSON",
-				Action: func(_ context.Context, _ *cli.Command) error {
-					return handlePlan()
+					return handleAudit(cmd.String("file"))
 				},
 			},
 		},
@@ -521,134 +492,30 @@ func formatBytes(b int64) string {
 	return fmt.Sprintf("%.2f %cB", float64(b)/float64(div), "KMGTPE"[exp])
 }
 
-// PlanEntry represents a single migration operation.
-type PlanEntry struct {
-	OriginalPath string `json:"original_path"`
-	Source       string `json:"source"`
-	Host         string `json:"host"`
-	TargetDir    string `json:"target_dir"`
-	TargetFile   string `json:"target_file"`
-	Action       string `json:"action"` // move, delete, skip
-	Category     string `json:"category"`
-	Reason       string `json:"reason"`
-}
-
-func handlePlan() error {
-	db, err := sql.Open("sqlite", "purgomatic.db")
+// handleAudit combines scanning and reporting into a single operation.
+func handleAudit(batchFile string) error {
+	data, err := os.ReadFile(batchFile)
 	if err != nil {
-		return err
-	}
-	defer func() { _ = db.Close() }()
-
-	fmt.Println("Generating Migration Plan (Home-First Intelligence)...")
-
-	var allFiles []dbFile
-	rows, err := db.Query("SELECT hostname, source, path, name, ext, size, hash, year FROM files ORDER BY size DESC")
-	if err != nil {
-		return err
-	}
-	defer func() { _ = rows.Close() }()
-	for rows.Next() {
-		var f dbFile
-		if err := scanStruct(rows, &f); err == nil {
-			allFiles = append(allFiles, f)
-		}
+		return fmt.Errorf("failed to read %s: %w", batchFile, err)
 	}
 
-	// 2. Identify "Golden Winners"
-	homeWinners := getHomeWinners(allFiles)
-
-	// 3. Phase 2: Build the Migration Plan with Home-Aware Deduplication.
-	var plan []PlanEntry
-	seenHashes := make(map[string]bool)
-	targetCounts := make(map[string]int)
-
-	for _, f := range allFiles {
-		baseName := strings.TrimSuffix(f.FullName, f.Ext)
-		entry := PlanEntry{
-			OriginalPath: f.Path,
-			Source:       f.Src,
-			Host:         f.Host,
-			Action:       "move", // Default
-		}
-
-		// A. Deduplicate against Golden Winners.
-		if winnerPath, exists := homeWinners[f.Hash]; exists {
-			if f.Path == winnerPath {
-				entry.Action = "stay"
-				entry.Reason = "Already in the correct position on the target."
-			} else {
-				entry.Action = "defer"
-				entry.Category = "Redundant"
-				entry.Reason = fmt.Sprintf("Identical file already safely at Home: %s", winnerPath)
-			}
-			seenHashes[f.Hash] = true
-			plan = append(plan, entry)
-			continue
-		}
-
-		// B. Global Identity Check (for non-home files).
-		if f.Hash != "" && seenHashes[f.Hash] {
-			entry.Action = "defer"
-			entry.Category = "Redundant"
-			entry.Reason = "Identical file already planned for archiving in this session."
-			plan = append(plan, entry)
-			continue
-		}
-		if f.Hash != "" {
-			seenHashes[f.Hash] = true
-		}
-
-		// C. Junk Detection.
-		lowName := strings.ToLower(f.FullName)
-		if strings.HasPrefix(lowName, ".") || strings.Contains(lowName, "thumb") || f.Ext == ".log" || f.Ext == ".tmp" {
-			entry.Action = "defer"
-			entry.Category = "Cleanup"
-			entry.Reason = "System junk or temporary file. Deferring for safety."
-			plan = append(plan, entry)
-			continue
-		}
-
-		// D. Tiering Logic.
-		strat := getStrategy(f.Ext, f.Year)
-		targetFile := f.FullName
-		entry.Category = strat.Category
-		entry.TargetDir = strat.TargetDir
-		entry.Reason = strat.Advice
-
-		if entry.Category == "Uncategorized" {
-			entry.Action = "defer"
-		}
-
-		// E. Collision Handling.
-		targetKey := entry.TargetDir + targetFile
-		if count, exists := targetCounts[targetKey]; exists {
-			targetCounts[targetKey] = count + 1
-			entry.TargetFile = fmt.Sprintf("%s_%s%s", baseName, f.Hash[:6], f.Ext)
-			entry.Reason += " (Renamed due to collision)"
-		} else {
-			targetCounts[targetKey] = 1
-			entry.TargetFile = targetFile
-		}
-
-		plan = append(plan, entry)
-	}
-
-	// 4. Output to JSON (Standardization).
-	f, err := os.Create("migration.json")
-	if err != nil {
-		return err
-	}
-	defer func() { _ = f.Close() }()
-
-	encoder := json.NewEncoder(f)
-	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(plan); err != nil {
+	var targets []ScanTarget
+	if err := json.Unmarshal(data, &targets); err != nil {
 		return err
 	}
 
-	fmt.Printf("Home-First Plan generated: %d operations exported to migration.json\n", len(plan))
-	return nil
+	fmt.Printf("Starting audit of %d targets...\n", len(targets))
+	for _, t := range targets {
+		s := t.Source
+		if s == "" {
+			s = filepath.Base(t.Path)
+		}
+		if err := handleScan(s, t.Path); err != nil {
+			fmt.Printf("Error scanning %s [%s]: %v\n", s, t.Path, err)
+		}
+	}
+
+	return handleReport()
 }
 
 // scanStruct maps a *sql.Rows row to a struct tagged with `db`.
@@ -697,29 +564,4 @@ func nameToExt(name string) string {
 type ScanTarget struct {
 	Source string `json:"source"`
 	Path   string `json:"path"`
-}
-
-// handleBatchScan processes a JSON file of scan targets.
-func handleBatchScan(file string) error {
-	data, err := os.ReadFile(file)
-	if err != nil {
-		return err
-	}
-
-	var targets []ScanTarget
-	if err := json.Unmarshal(data, &targets); err != nil {
-		return fmt.Errorf("failed to parse batch scan file: %v (ensure it is valid JSON)", err)
-	}
-
-	fmt.Printf("Starting batch scan of %d targets...\n", len(targets))
-	for _, t := range targets {
-		s := t.Source
-		if s == "" {
-			s = "Local"
-		}
-		if err := handleScan(s, t.Path); err != nil {
-			fmt.Printf("Error scanning %s [%s]: %v\n", s, t.Path, err)
-		}
-	}
-	return nil
 }
