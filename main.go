@@ -50,7 +50,7 @@ func main() {
 				Name:  "init",
 				Usage: "Initialize the purgomatic SQLite database",
 				Action: func(_ context.Context, _ *cli.Command) error {
-					db, err := sql.Open("sqlite", "purgomatic.db")
+					db, err := sql.Open("sqlite", getDBPath())
 					if err != nil {
 						return err
 					}
@@ -58,7 +58,7 @@ func main() {
 					if _, err := db.Exec(DBInit); err != nil {
 						return err
 					}
-					fmt.Println("Initialized purgomatic.db with Multi-Host support.")
+					fmt.Printf("Initialized %s with Multi-Host support.\n", getDBPath())
 					return nil
 				},
 			},
@@ -148,7 +148,7 @@ func getHomeWinners(files []dbFile) map[string]string {
 // handleScan scans a directory and indexes metadata into SQLite.
 func handleScan(source, root string) error {
 	host, _ := os.Hostname()
-	db, err := sql.Open("sqlite", "purgomatic.db")
+	db, err := sql.Open("sqlite", getDBPath())
 	if err != nil {
 		return err
 	}
@@ -304,7 +304,7 @@ func handleScan(source, root string) error {
 
 // handleReport generates a global SRE-grade audit dashboard.
 func handleReport() error {
-	db, err := sql.Open("sqlite", "purgomatic.db")
+	db, err := sql.Open("sqlite", getDBPath())
 	if err != nil {
 		return err
 	}
@@ -500,6 +500,27 @@ func formatBytes(b int64) string {
 		exp++
 	}
 	return fmt.Sprintf("%.2f %cB", float64(b)/float64(div), "KMGTPE"[exp])
+}
+
+// getDBPath determines the database file path based on environment, CWD, or home directory.
+func getDBPath() string {
+	if env := os.Getenv("PURGOMATIC_DB"); env != "" {
+		return env
+	}
+	// Check current directory
+	cwd, _ := os.Getwd()
+	cwdPath := filepath.Join(cwd, "purgomatic.db")
+	if _, err := os.Stat(cwdPath); err == nil {
+		return cwdPath
+	}
+	// Check home directory
+	home, _ := os.UserHomeDir()
+	homePath := filepath.Join(home, "purgomatic.db")
+	if _, err := os.Stat(homePath); err == nil {
+		return homePath
+	}
+	// Default to current directory
+	return "purgomatic.db"
 }
 
 // handleAudit combines scanning and reporting into a single operation.
