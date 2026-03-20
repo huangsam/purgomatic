@@ -1,41 +1,25 @@
 # Purgomatic 💎
 
-A high-performance, Audit-Only tool for tracking and planning large photo/video migrations.
+High-performance auditing for large-scale photo/video migrations.
 
-## Philosophy: Home-First Intelligence
-Purgomatic is built on the **"Home-First"** principle. Instead of just finding duplicates, it identifies **"Golden Winners"** (files already safely archived in your target Synology/Archive folders) and helps you eliminate the "Toil" (redundant copies on Phones/Thumb drives).
+## Concept
+Purgomatic identifies **"Golden Winners"** (safely archived assets) to help you eliminate **"Toil"** (redundant copies). It provide clear strategic advice on what to move and where.
 
-It provides a **Strategic Dashboard** telling you what needs to be moved and what’s already safe.
-
-### Key Features
-- **Zero CGO**: Pure Go using `modernc.org/sqlite`.
-- **Consolidated Audit**: Single command for scanning and reporting.
+### Features
+- **Zero CGO**: Pure Go using `sqlite`.
 - **Hardware Scaled**: Dynamic concurrency via `runtime.NumCPU()`.
 - **Multi-Point Hashing**: Sparse SHA-256 sampling for speed and safety.
-- **Stat-First Sync**: Skips unchanged files using metadata.
-- **Worst Offenders**: Flags top 3 largest files per year.
+- **Stat-First Sync**: Skips unchanged files via metadata.
+- **Worst Offenders**: Flags the top 3 largest files per year.
 
-## Getting Started
-
-### 1. Installation
-Purgomatic is a standard Go tool. Once you've pushed this to GitHub:
-```bash
-go install github.com/[your-user]/purgomatic@latest
-```
-
-### 2. Define Scan Targets
-Create `scans.json` to tell Purgomatic where your folders are:
+## Setup
+1. **Install**: `go install github.com/huangsam/purgomatic@latest`
+2. **Configure**: Create `scans.json`:
 ```json
-[
-  { "source": "Synology", "path": "/Volumes/Synology/Photos" },
-  { "source": "Local", "path": "/Users/sam/Pictures/Imports" },
-  { "source": "Phones", "path": "/Volumes/iPhone_Backup" }
-]
+[{ "source": "Synology", "path": "/Volumes/Photos" }, { "source": "Phone", "path": "/Backup" }]
 ```
-
-### 3. The Audit Lifecycle
-Using the `Makefile`:
+3. **Run**:
 ```bash
-make init   # Initialize the Multi-Host SQLite database
-make audit  # Perform scan and generate global Insight dashboard
+make init   # Initialize database
+make audit  # Scan and report
 ```
