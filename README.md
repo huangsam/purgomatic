@@ -1,8 +1,6 @@
-# Purgomatic 💎 (v1.1)
+# Purgomatic 💎
 
-**The SRE Photo Librarian** — A high-performance, minimalist Audit-Only tool for tracking and planning large photo/video migrations (91k+ files).
-
----
+A high-performance, Audit-Only tool for tracking and planning large photo/video migrations.
 
 ## Philosophy: Home-First Intelligence
 Purgomatic is built on the **"Home-First"** principle. Instead of just finding duplicates, it identifies **"Golden Winners"** (files already safely archived in your target Synology/Archive folders) and helps you eliminate the "Toil" (redundant copies on Phones/Thumb drives).
@@ -16,8 +14,6 @@ It provides a **Strategic Dashboard** telling you what needs to be moved and wha
 - **Multi-Point Hashing**: Custom SHA-256 sampler (First/Middle/End) for collision-resistant deduplication at scale.
 - **Stat-First Sync**: Blazing fast rescans by skipping hashing for unchanged files based on Size/Mtime.
 - **Worst Offenders Tracking**: Automatically flags the top 3 largest files per year to highlight migration targets.
-
----
 
 ## Getting Started
 
@@ -41,21 +37,5 @@ Create `scans.json` to tell Purgomatic where your folders are:
 Using the `Makefile`:
 ```bash
 make init   # Initialize the Multi-Host SQLite database
-make audit  # Perform scan and generate global SRE Insight dashboard
+make audit  # Perform scan and generate global Insight dashboard
 ```
-
----
-
-## Architectural Specs
-| Metric | Specification |
-| :--- | :--- |
-| **Language** | Go 1.26+ (Modern Concurrency) |
-| **Database** | SQLite (CGO-free / Multi-Host) |
-| **Concurrency** | Dynamic (`runtime.NumCPU() * 2`) |
-| **Hashing** | Multi-Point SHA-256 (Sampling 48KB) |
-| **Performance** | Sub-second analysis on 91,646 assets |
-
----
-
-## Project Status: 1.1 (Final)
-We've achieved **Complete System Delivery** with a focus on minimalism. The tool has been stripped of unnecessary automation in favor of actionable, human-readable advice.
