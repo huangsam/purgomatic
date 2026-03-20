@@ -46,8 +46,8 @@ func GetDBPath() string {
 	if _, err := os.Stat(homePath); err == nil {
 		return homePath
 	}
-	// Default to current directory
-	return "purgomatic.db"
+	// Default to home directory
+	return homePath
 }
 
 // ScanStruct maps a *sql.Rows row to a struct tagged with `db`.
