@@ -15,11 +15,14 @@ Purgomatic identifies **"Golden Winners"** (safely archived assets) to help you 
 ## Setup
 1. **Install**: `go install github.com/huangsam/purgomatic@latest`
 2. **Configure**: Create `scans.json`:
-```json
-[{ "source": "Synology", "path": "/Volumes/Photos" }, { "source": "Phone", "path": "/Backup" }]
-```
+    ```json
+    [{ "path": "/path/to/phones" }, { "path": "/path/to/pictures" }]
+    ```
 3. **Run**:
-```bash
-make init   # Initialize database
-make audit  # Scan and report
-```
+    ```bash
+    # Initialize database
+    purgomatic init
+
+    # Scan and report
+    purgomatic audit --file scans.json
+    ```
