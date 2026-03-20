@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -207,7 +208,7 @@ func handleScan(source, root string) error {
 	}()
 
 	// 2. Workers: Parallel hashing with Stat-Skip.
-	const numWorkers = 20
+	numWorkers := runtime.NumCPU() * 2
 	for range numWorkers {
 		wg.Go(func() {
 			for j := range jobChan {
