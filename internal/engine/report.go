@@ -53,14 +53,10 @@ func HandleReport() error {
 		return err
 	}
 	defer func() { _ = rows.Close() }()
-	yearTopFiles := make(map[int][]dbFile)
 	for rows.Next() {
 		var f dbFile
 		if err := ScanStruct(rows, &f); err == nil {
 			allFiles = append(allFiles, f)
-			if len(yearTopFiles[f.Year]) < 3 {
-				yearTopFiles[f.Year] = append(yearTopFiles[f.Year], f)
-			}
 		}
 	}
 
@@ -81,6 +77,8 @@ func HandleReport() error {
 	}
 	summaries := make(map[string]*catSummary)
 
+	var globalPending []dbFile
+
 	for _, f := range allFiles {
 		totalBytes += f.Size
 
@@ -97,16 +95,20 @@ func HandleReport() error {
 		summaries[strat.Category].count++
 		summaries[strat.Category].size += f.Size
 
-		if _, atHome := homeWinners[f.Hash]; atHome && !strings.Contains(f.Path, "Synology") && !strings.Contains(f.Path, "ExternalSSD") {
+		isArchived := strings.Contains(f.Path, "Synology") || strings.Contains(f.Path, "ExternalSSD")
+
+		if _, atHome := homeWinners[f.Hash]; atHome && !isArchived {
 			toilBytes += f.Size
 		}
 
 		if !uniqueHashes[f.Hash] {
 			uniqueHashes[f.Hash] = true
 			yearStats[f.Year] += f.Size
-			if strings.Contains(f.Path, "Synology") || strings.Contains(f.Path, "ExternalSSD") {
+			if isArchived {
 				libraryBytes += f.Size
 				yearArchived[f.Year] += f.Size
+			} else if len(globalPending) < 10 {
+				globalPending = append(globalPending, f)
 			}
 		}
 	}
@@ -117,20 +119,9 @@ func HandleReport() error {
 	fmt.Printf("Unique Library Assets   : %s (%d unique hashes)\n", formatBytes(libraryBytes), len(uniqueHashes))
 	fmt.Printf("System Junk             : %s (Metadata/Logs)\n", formatBytes(junkBytes))
 
-	fmt.Printf("\n[ STRATEGIC RECOMMENDATIONS ]\n")
-	orderedCats := []string{"Family Video", "Master RAW", "Photo Library", "Uncategorized"}
-	for _, name := range orderedCats {
-		s, ok := summaries[name]
-		if !ok || s.count == 0 {
-			continue
-		}
-		strat := getStrategy(nameToExt(name), 0)
-		fmt.Printf("- %-15s: %d files (%s)\n", name, s.count, formatBytes(s.size))
-		fmt.Printf("  └─ Action: Move to [%s]\n", strat.TargetDir)
-		fmt.Printf("  └─ Advice: %s\n", strat.Advice)
-	}
-
 	fmt.Printf("\n[ LIBRARY HEALTH BY YEAR ]\n")
+	fmt.Printf("%-6s | %-10s | %-12s | %-8s\n", "YEAR", "STATUS", "UNIQUE SIZE", "ARCHIVED")
+	fmt.Printf("-------+------------+--------------+----------\n")
 	var years []int
 	for y := range yearStats {
 		years = append(years, y)
@@ -147,12 +138,26 @@ func HandleReport() error {
 		if pct >= 99.0 {
 			status = "ARCHIVED"
 		}
-		fmt.Printf("- %d: %-10s (%s unique, %.1f%% archived)\n", y, status, formatBytes(total), pct)
-		if status == "PENDING" {
-			for _, tf := range yearTopFiles[y] {
-				fmt.Printf("  ! %-40s | %s\n", tf.FullName, formatBytes(tf.Size))
-			}
+		fmt.Printf("%-6d | %-10s | %-12s | %6.1f%%\n", y, status, formatBytes(total), pct)
+	}
+
+	if len(globalPending) > 0 {
+		fmt.Printf("\n[ ACTIONABLE: TOP PENDING ASSETS ]\n")
+		for _, f := range globalPending {
+			fmt.Printf("! %-40s | %s\n", f.FullName, formatBytes(f.Size))
 		}
+	}
+
+	fmt.Printf("\n[ STRATEGIC RECOMMENDATIONS ]\n")
+	orderedCats := []string{"Family Video", "Master RAW", "Photo Library", "Uncategorized"}
+	for _, name := range orderedCats {
+		s, ok := summaries[name]
+		if !ok || s.count == 0 {
+			continue
+		}
+		strat := getStrategy(nameToExt(name), 0)
+		fmt.Printf("- %-15s: %d files (%s) -> Move to [%s]\n", name, s.count, formatBytes(s.size), strat.TargetDir)
+		fmt.Printf("  └─ %s\n", strat.Advice)
 	}
 
 	fmt.Printf("\n[ HOST FOOTPRINT ]\n")
