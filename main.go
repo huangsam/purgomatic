@@ -318,10 +318,14 @@ func handleReport() error {
 		return err
 	}
 	defer func() { _ = rows.Close() }()
+	yearTopFiles := make(map[int][]dbFile)
 	for rows.Next() {
 		var f dbFile
 		if err := scanStruct(rows, &f); err == nil {
 			allFiles = append(allFiles, f)
+			if len(yearTopFiles[f.Year]) < 3 {
+				yearTopFiles[f.Year] = append(yearTopFiles[f.Year], f)
+			}
 		}
 	}
 
@@ -415,6 +419,11 @@ func handleReport() error {
 			status = "ARCHIVED"
 		}
 		fmt.Printf("- %d: %-10s (%s unique, %.1f%% archived)\n", y, status, formatBytes(total), pct)
+		if status == "PENDING" {
+			for _, tf := range yearTopFiles[y] {
+				fmt.Printf("  ! %-40s | %s\n", tf.FullName, formatBytes(tf.Size))
+			}
+		}
 	}
 
 	fmt.Printf("\n[ HOST FOOTPRINT ]\n")
