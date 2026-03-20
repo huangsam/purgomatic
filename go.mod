@@ -1,4 +1,4 @@
-module purgomatic
+module github.com/huangsam/purgomatic
 
 go 1.26.1
 

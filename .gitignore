@@ -3,3 +3,4 @@ migration.json
 scans.json
 *.db
 *.db-journal
+/purgomatic
